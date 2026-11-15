@@ -75,18 +75,8 @@ export const SignUpPage: React.FC = () => {
     });
 
     if (success) {
-      // Attempt auto-login directly into 1st-login face registration
-      const { signIn } = useAuthStore.getState();
-      const autoSigned = await signIn({
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (autoSigned) {
-        navigate('/enroll', { replace: true });
-      } else {
-        navigate('/verify-email');
-      }
+      // Automatically route directly to mandatory 1st-login 5-angle face registration
+      navigate('/enroll', { replace: true });
     }
   };
 
@@ -168,7 +158,7 @@ export const SignUpPage: React.FC = () => {
             className="w-full mt-2"
             isLoading={isLoading}
           >
-            Create Account
+            Create Account &amp; Proceed to Face Registration
           </Button>
         </form>
 

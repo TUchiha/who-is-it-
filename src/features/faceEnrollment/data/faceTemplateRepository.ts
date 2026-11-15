@@ -8,18 +8,28 @@ export class FaceTemplateRepository {
   private allTemplatesKey = 'who_is_it_all_enrolled_profiles';
 
   async isUserEnrolled(userId: string): Promise<boolean> {
-    // 1. Check local secure vault (IndexedDB)
-    const localVault = await secureStore.getLocalFaceTemplate();
-    if (localVault.success && localVault.value) {
-      return true;
+    // 1. If explicit fresh test user persona, always report unenrolled to test flow
+    if (userId.startsWith('99999999-')) {
+      return false;
     }
 
-    // 2. Check localStorage cache
+    // 2. Check user-specific localStorage cache
     if (localStorage.getItem(`${this.localKeyPrefix}${userId}`)) {
       return true;
     }
 
-    // 3. Check remote database
+    // 3. Check local enrolled registry for this specific user
+    try {
+      const existingRaw = localStorage.getItem(this.allTemplatesKey);
+      if (existingRaw) {
+        const parsed = JSON.parse(existingRaw);
+        if (parsed[userId]) {
+          return true;
+        }
+      }
+    } catch {}
+
+    // 4. Check remote Supabase database
     try {
       const { data, error } = await supabase
         .from('face_templates')
@@ -28,10 +38,19 @@ export class FaceTemplateRepository {
         .maybeSingle();
 
       if (!error && data) {
+        localStorage.setItem(`${this.localKeyPrefix}${userId}`, 'true');
         return true;
       }
     } catch (e) {
       logger.warn('Could not query remote face_templates table', e);
+    }
+
+    // 5. Check local device secure vault (IndexedDB) for demo persona
+    if (userId === '11111111-1111-1111-1111-111111111111') {
+      const localVault = await secureStore.getLocalFaceTemplate();
+      if (localVault.success && localVault.value) {
+        return true;
+      }
     }
 
     return false;

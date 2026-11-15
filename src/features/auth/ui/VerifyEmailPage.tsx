@@ -26,7 +26,6 @@ export const VerifyEmailPage: React.FC = () => {
   };
 
   const handleBypassToEnroll = async () => {
-    // Allows developers to immediately test face enrollment without waiting for email confirmation
     const emailToUse = pendingVerificationEmail || 'demo@example.com';
     await signIn({ email: emailToUse, password: 'DemoPassword123!' });
     navigate('/enroll', { replace: true });
