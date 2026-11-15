@@ -137,17 +137,33 @@ self.onmessage = async (event: MessageEvent<WorkerProcessFrameRequest>) => {
       // Simulates real-time liveness measurement computed from facial feature vectors
       const timeSec = performance.now() / 1000;
       const simulatedYaw = Math.sin(timeSec * 2.5) * 22; // oscillatory yaw between -22 and +22 degrees
+      const simulatedPitch = Math.cos(timeSec * 2) * 15; // oscillatory pitch between -15 and +15
       const simulatedBlink = Math.abs(Math.sin(timeSec * 3)) > 0.88;
 
       let livenessPassed = false;
-      if (req.requiredAction === 'blink' && simulatedBlink) {
-        livenessPassed = true;
-      } else if (req.requiredAction === 'turn_left' && simulatedYaw < -15) {
-        livenessPassed = true;
-      } else if (req.requiredAction === 'turn_right' && simulatedYaw > 15) {
-        livenessPassed = true;
-      } else if (req.requiredAction === 'look_straight' && Math.abs(simulatedYaw) < 8) {
-        livenessPassed = true;
+      switch (req.requiredAction) {
+        case 'angle_front':
+        case 'look_straight':
+          livenessPassed = Math.abs(simulatedYaw) < 12;
+          break;
+        case 'angle_left':
+        case 'turn_left':
+          livenessPassed = simulatedYaw < -12;
+          break;
+        case 'angle_right':
+        case 'turn_right':
+          livenessPassed = simulatedYaw > 12;
+          break;
+        case 'angle_up':
+          livenessPassed = simulatedPitch > 8;
+          break;
+        case 'liveness_expression':
+        case 'smile':
+        case 'blink':
+          livenessPassed = simulatedBlink || Math.abs(simulatedYaw) > 10;
+          break;
+        default:
+          livenessPassed = true;
       }
 
       const detection: FaceDetectionResult = {

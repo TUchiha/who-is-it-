@@ -1,37 +1,39 @@
 import React from 'react';
-import { Eye, ArrowLeft, ArrowRight, Focus, Smile, CheckCircle2, AlertCircle } from 'lucide-react';
-import type { LivenessStep } from '../../../core/ml/livenessService';
+import { Eye, ArrowLeft, ArrowRight, ArrowUp, Focus, Smile, CheckCircle2, AlertCircle } from 'lucide-react';
+import type { MultiAngleSnapStep } from '../../../core/ml/livenessService';
 import type { QualityMetrics } from '../../../core/ml/mlTypes';
 
 export interface LivenessOverlayProps {
-  currentStep: LivenessStep | null;
-  stepIndex: number;
-  totalSteps: number;
+  steps: MultiAngleSnapStep[];
+  currentStepIndex: number;
   quality: QualityMetrics | null;
-  samplesCollected: number;
-  targetSamples: number;
+  capturedIndices: Set<number>;
   isProcessing: boolean;
+  holdProgress: number; // 0 to 100 for auto-capture hold progress
 }
 
 export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
-  currentStep,
-  stepIndex,
-  totalSteps,
+  steps,
+  currentStepIndex,
   quality,
-  samplesCollected,
-  targetSamples,
+  capturedIndices,
   isProcessing,
+  holdProgress,
 }) => {
-  const getStepIcon = (iconName?: string) => {
+  const currentStep = steps[currentStepIndex] || steps[0]!;
+
+  const getStepIcon = (iconName: string) => {
     switch (iconName) {
+      case 'ArrowLeft':
+        return <ArrowLeft className="w-8 h-8 text-indigo-400 animate-pulse" />;
+      case 'ArrowRight':
+        return <ArrowRight className="w-8 h-8 text-indigo-400 animate-pulse" />;
+      case 'ArrowUp':
+        return <ArrowUp className="w-8 h-8 text-indigo-400 animate-bounce" />;
+      case 'Smile':
+        return <Smile className="w-8 h-8 text-amber-400 animate-pulse" />;
       case 'Eye':
         return <Eye className="w-8 h-8 text-cyan-400 animate-pulse" />;
-      case 'ArrowLeft':
-        return <ArrowLeft className="w-8 h-8 text-cyan-400 animate-bounce" />;
-      case 'ArrowRight':
-        return <ArrowRight className="w-8 h-8 text-cyan-400 animate-bounce" />;
-      case 'Smile':
-        return <Smile className="w-8 h-8 text-cyan-400" />;
       case 'Focus':
       default:
         return <Focus className="w-8 h-8 text-emerald-400" />;
@@ -41,66 +43,119 @@ export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
   const isAligned = quality?.passesQuality ?? false;
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6">
-      {/* Top Banner: Step Tracker & Instructions */}
-      <div className="w-full max-w-md mx-auto space-y-2">
-        <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-slate-950/80 backdrop-blur-md border border-slate-800 text-xs">
-          <span className="font-semibold text-cyan-400">
-            Liveness Challenge: Step {stepIndex + 1} of {totalSteps}
-          </span>
-          <span className="font-mono text-slate-400">
-            Biometric Samples: {samplesCollected}/{targetSamples}
-          </span>
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 sm:p-6 select-none">
+      {/* Top 5 Angle Snap Indicator Cards */}
+      <div className="w-full max-w-xl mx-auto space-y-2">
+        <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+          {steps.map((s, idx) => {
+            const isCaptured = capturedIndices.has(idx);
+            const isCurrent = idx === currentStepIndex;
+
+            return (
+              <div
+                key={s.id}
+                className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all duration-300 border backdrop-blur-md ${
+                  isCaptured
+                    ? 'bg-emerald-500/90 border-emerald-400 text-white shadow-md shadow-emerald-500/30'
+                    : isCurrent
+                    ? 'bg-indigo-600/90 border-indigo-400 text-white ring-2 ring-indigo-400/60 shadow-lg'
+                    : 'bg-slate-950/70 border-slate-800 text-slate-400'
+                }`}
+              >
+                <div className="flex items-center gap-1">
+                  {isCaptured ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                  ) : (
+                    <span className="text-[10px] font-mono font-bold">#{idx + 1}</span>
+                  )}
+                </div>
+                <span className="text-[10px] font-semibold tracking-tight truncate max-w-full">
+                  {s.label}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Progress Bar */}
-        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-          <div
-            className="bg-cyan-500 h-full transition-all duration-300"
-            style={{ width: `${((stepIndex + 1) / totalSteps) * 100}%` }}
-          />
-        </div>
+        {/* Hold Capture Circular/Linear Progress Bar */}
+        {holdProgress > 0 && holdProgress < 100 && (
+          <div className="w-full bg-slate-900/80 h-2 rounded-full overflow-hidden border border-slate-700/80">
+            <div
+              className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full transition-all duration-150"
+              style={{ width: `${holdProgress}%` }}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Center: Face Oval Guide Target */}
+      {/* Center Target: Face Oval Frame with Directional Guides */}
       <div className="relative flex items-center justify-center my-auto">
         <div
-          className={`w-64 h-80 sm:w-72 sm:h-96 rounded-[50%] border-4 transition-all duration-300 flex items-center justify-center ${
+          className={`relative w-64 h-80 sm:w-72 sm:h-96 rounded-[50%] border-4 transition-all duration-300 flex items-center justify-center ${
             isAligned
-              ? 'border-emerald-400 shadow-[0_0_40px_rgba(52,211,153,0.35)]'
-              : 'border-cyan-400/60 border-dashed shadow-[0_0_20px_rgba(56,189,248,0.2)]'
+              ? 'border-emerald-400 shadow-[0_0_50px_rgba(52,211,153,0.35)]'
+              : 'border-indigo-400/70 border-dashed shadow-[0_0_30px_rgba(99,102,241,0.25)]'
           }`}
         >
-          {/* Subtle crosshairs */}
-          <div className="w-12 h-12 border-t border-b border-cyan-400/30 rounded-full" />
+          {/* Animated Directional Cue Indicator inside the oval */}
+          {currentStep.action === 'angle_left' && (
+            <div className="absolute -left-10 p-3 rounded-full bg-indigo-600 text-white shadow-lg animate-bounce">
+              <ArrowLeft className="w-6 h-6" />
+            </div>
+          )}
+          {currentStep.action === 'angle_right' && (
+            <div className="absolute -right-10 p-3 rounded-full bg-indigo-600 text-white shadow-lg animate-bounce">
+              <ArrowRight className="w-6 h-6" />
+            </div>
+          )}
+          {currentStep.action === 'angle_up' && (
+            <div className="absolute -top-10 p-3 rounded-full bg-indigo-600 text-white shadow-lg animate-bounce">
+              <ArrowUp className="w-6 h-6" />
+            </div>
+          )}
+
+          {/* Center alignment reticle */}
+          <div className="w-16 h-16 border-t-2 border-b-2 border-indigo-400/40 rounded-full" />
         </div>
       </div>
 
-      {/* Bottom: Active Prompt Action Card */}
-      <div className="w-full max-w-md mx-auto">
-        <div className="p-4 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-slate-800 shadow-2xl flex items-center gap-4">
-          <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 shrink-0">
-            {currentStep ? getStepIcon(currentStep.icon) : <Focus className="w-8 h-8 text-cyan-400" />}
+      {/* Bottom Instructions Card */}
+      <div className="w-full max-w-lg mx-auto">
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-slate-800 text-white shadow-2xl flex items-center gap-4">
+          <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 shrink-0">
+            {getStepIcon(currentStep.icon)}
           </div>
           <div className="flex-1 space-y-1">
-            <h3 className="font-bold text-base text-white tracking-tight">
-              {currentStep ? currentStep.prompt : 'Position your face in the oval'}
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 font-mono">
+                {currentStep.title}
+              </span>
+              <span className="text-xs text-slate-400 font-medium">
+                Snap {currentStepIndex + 1} of {steps.length}
+              </span>
+            </div>
+            <h3 className="font-extrabold text-base sm:text-lg text-white leading-tight">
+              {currentStep.prompt}
             </h3>
+            <p className="text-xs text-slate-400">
+              {currentStep.instruction}
+            </p>
+
             {quality?.failureReason ? (
-              <p className="text-xs text-amber-400 font-medium flex items-center gap-1.5">
+              <p className="text-xs text-amber-400 font-medium flex items-center gap-1.5 pt-0.5">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                 <span>{quality.failureReason}</span>
               </p>
             ) : isAligned ? (
-              <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
+              <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5 pt-0.5">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Face aligned. {isProcessing ? 'Vectorizing...' : 'Performing action'}</span>
+                <span>
+                  {holdProgress >= 100 || isProcessing
+                    ? 'Snap captured! Moving to next angle...'
+                    : 'Hold steady for snap capture...'}
+                </span>
               </p>
-            ) : (
-              <p className="text-xs text-slate-400">
-                Fit your full face inside the oval guide
-              </p>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

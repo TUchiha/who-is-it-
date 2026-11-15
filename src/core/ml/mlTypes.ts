@@ -4,6 +4,11 @@
  */
 
 export type LivenessAction =
+  | 'angle_front'
+  | 'angle_left'
+  | 'angle_right'
+  | 'angle_up'
+  | 'liveness_expression'
   | 'blink'
   | 'turn_left'
   | 'turn_right'
