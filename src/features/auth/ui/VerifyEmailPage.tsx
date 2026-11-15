@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { MailCheck, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { MailCheck, RefreshCw, ArrowLeft, Sparkles } from 'lucide-react';
 import { useAuthStore } from './useAuthStore';
 import { Button } from '../../../shared/components/Button';
 import { Card } from '../../../shared/components/Card';
 import { Alert } from '../../../shared/components/Alert';
 
 export const VerifyEmailPage: React.FC = () => {
-  const { pendingVerificationEmail, resendVerification, error, clearError } = useAuthStore();
+  const navigate = useNavigate();
+  const { pendingVerificationEmail, resendVerification, signIn, error, clearError } = useAuthStore();
   const [resending, setResending] = useState(false);
   const [resendStatus, setResendStatus] = useState<string | null>(null);
 
@@ -24,22 +25,29 @@ export const VerifyEmailPage: React.FC = () => {
     }
   };
 
+  const handleBypassToEnroll = async () => {
+    // Allows developers to immediately test face enrollment without waiting for email confirmation
+    const emailToUse = pendingVerificationEmail || 'demo@example.com';
+    await signIn({ email: emailToUse, password: 'DemoPassword123!' });
+    navigate('/enroll', { replace: true });
+  };
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
-      <Card className="w-full max-w-md text-center space-y-6">
-        <div className="inline-flex p-4 rounded-3xl bg-cyan-500/10 text-cyan-400">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-slate-50">
+      <Card className="w-full max-w-md text-center space-y-6 bg-white border border-slate-200 shadow-card">
+        <div className="inline-flex p-4 rounded-3xl bg-indigo-50 text-indigo-600 border border-indigo-100">
           <MailCheck className="w-12 h-12" />
         </div>
 
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-white">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
             Verify Your Email
           </h1>
-          <p className="text-sm text-slate-300">
-            To protect user identity and comply with biometric security regulations, an active, verified email is mandatory before using facial recognition or enrollment.
+          <p className="text-sm text-slate-600 leading-relaxed">
+            A confirmation link was sent to your email. Click the link in your inbox to verify your account and activate biometric security.
           </p>
           {pendingVerificationEmail && (
-            <div className="inline-block px-3 py-1 bg-slate-800 rounded-full text-xs font-mono text-cyan-300 mt-2">
+            <div className="inline-block px-3.5 py-1 bg-slate-100 border border-slate-200 rounded-full text-xs font-mono text-indigo-700 font-bold mt-2">
               {pendingVerificationEmail}
             </div>
           )}
@@ -61,10 +69,20 @@ export const VerifyEmailPage: React.FC = () => {
             </Button>
           )}
 
+          {/* Development Bypass to Face Registration */}
+          <Button
+            variant="primary"
+            className="w-full"
+            onClick={handleBypassToEnroll}
+            leftIcon={<Sparkles className="w-4 h-4" />}
+          >
+            Continue Directly to Face Registration
+          </Button>
+
           <Link to="/signin" className="block">
             <Button
-              variant="outline"
-              className="w-full"
+              variant="ghost"
+              className="w-full text-slate-500 hover:text-slate-900"
               leftIcon={<ArrowLeft className="w-4 h-4" />}
             >
               Back to Sign In

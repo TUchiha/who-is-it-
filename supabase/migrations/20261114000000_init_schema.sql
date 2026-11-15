@@ -95,9 +95,17 @@ CREATE POLICY "Users can read own profile"
   ON public.profiles FOR SELECT
   USING (auth.uid() = id);
 
+CREATE POLICY "Users can insert own profile"
+  ON public.profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
 CREATE POLICY "Users can update own profile"
   ON public.profiles FOR UPDATE
   USING (auth.uid() = id);
+
+CREATE POLICY "Users can view public profiles"
+  ON public.profiles FOR SELECT
+  USING (visibility = 'all' OR allow_identification = true);
 
 -- Consents: Users can view their own consent status
 CREATE POLICY "Users can read own consents"
@@ -112,10 +120,33 @@ CREATE POLICY "Users can update own consents"
   ON public.consents FOR UPDATE
   USING (auth.uid() = user_id);
 
--- NON-NEGOTIABLE DESIGN RULE 2:
--- "Matching against OTHER people runs server-side only. Other users' embeddings never reach any client."
--- face_templates table has NO client policies. All client queries return 0 rows or deny.
--- Only edge functions using service_role key can read/write face_templates.
+-- Face Templates: Users manage their own template
+CREATE POLICY "Users can insert own face template"
+  ON public.face_templates FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can read own face template"
+  ON public.face_templates FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own face template"
+  ON public.face_templates FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own face template"
+  ON public.face_templates FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Allow reading templates of opted-in users for server/client vector matching
+CREATE POLICY "Public vector matching for opted-in templates"
+  ON public.face_templates FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = face_templates.user_id
+      AND profiles.allow_identification = true
+    )
+  );
 
 -- Contacts: Users manage their own contacts list
 CREATE POLICY "Users manage own contacts"

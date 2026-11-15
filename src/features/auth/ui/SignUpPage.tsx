@@ -75,7 +75,18 @@ export const SignUpPage: React.FC = () => {
     });
 
     if (success) {
-      navigate('/verify-email');
+      // Attempt auto-login directly into 1st-login face registration
+      const { signIn } = useAuthStore.getState();
+      const autoSigned = await signIn({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (autoSigned) {
+        navigate('/enroll', { replace: true });
+      } else {
+        navigate('/verify-email');
+      }
     }
   };
 

@@ -23,7 +23,9 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  if (requireEmailVerification && !user.isEmailVerified) {
+  // In development, do not block testing with unverified emails
+  const shouldEnforceVerification = requireEmailVerification && !import.meta.env.DEV;
+  if (shouldEnforceVerification && !user.isEmailVerified) {
     return <Navigate to="/verify-email" replace />;
   }
 

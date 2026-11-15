@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Lock, Mail, Camera, KeyRound, Sparkles } from 'lucide-react';
 import { useAuthStore } from './useAuthStore';
+import { faceTemplateRepository } from '../../faceEnrollment/data/faceTemplateRepository';
 import { Button } from '../../../shared/components/Button';
 import { Input } from '../../../shared/components/Input';
 import { Card } from '../../../shared/components/Card';
@@ -33,7 +34,15 @@ export const SignInPage: React.FC = () => {
     });
 
     if (success) {
-      navigate(from, { replace: true });
+      const { user } = useAuthStore.getState();
+      if (user) {
+        const enrolled = await faceTemplateRepository.isUserEnrolled(user.id);
+        if (!enrolled) {
+          navigate('/enroll', { replace: true });
+          return;
+        }
+      }
+      navigate(from === '/' ? '/identify' : from, { replace: true });
     } else if (pendingVerificationEmail) {
       navigate('/verify-email');
     }
@@ -49,7 +58,15 @@ export const SignInPage: React.FC = () => {
       password: 'DemoPassword123!',
     });
     if (success) {
-      navigate(from, { replace: true });
+      const { user } = useAuthStore.getState();
+      if (user) {
+        const enrolled = await faceTemplateRepository.isUserEnrolled(user.id);
+        if (!enrolled) {
+          navigate('/enroll', { replace: true });
+          return;
+        }
+      }
+      navigate('/identify', { replace: true });
     }
   };
 
