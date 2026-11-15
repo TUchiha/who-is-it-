@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw, Camera, Sparkles, RotateCcw } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw, Camera, Sparkles, RotateCcw, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '../../auth/ui/useAuthStore';
 import { cameraService } from '../../../core/camera/cameraService';
 import { usePermission } from '../../../core/camera/usePermission';
@@ -25,7 +25,7 @@ export const EnrollmentPage: React.FC = () => {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Mutable refs for rock-solid loop synchronization (prevents React state closure bugs)
+  // Synchronization refs (guarantees zero stale closures & single-execution safety)
   const streamActiveRef = useRef(false);
   const currentStepIndexRef = useRef(0);
   const isCapturingRef = useRef(false);
@@ -34,6 +34,7 @@ export const EnrollmentPage: React.FC = () => {
   const holdFramesRef = useRef(0);
   const isCompletedRef = useRef(false);
   const animFrameIdRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(0);
 
   // React UI states
   const [showConsentModal, setShowConsentModal] = useState(true);
@@ -42,6 +43,7 @@ export const EnrollmentPage: React.FC = () => {
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [capturedIndices, setCapturedIndices] = useState<Set<number>>(new Set());
+  const [thumbnails, setThumbnails] = useState<Record<number, string>>({});
   const [quality, setQuality] = useState<QualityMetrics | null>(null);
   const [holdProgress, setHoldProgress] = useState(0);
   const [transitionMessage, setTransitionMessage] = useState<string | null>(null);
@@ -83,20 +85,39 @@ export const EnrollmentPage: React.FC = () => {
       logger.info('5-Angle biometric face registration completed successfully');
     } catch (e) {
       logger.error('Registration failed', e);
-      setErrorMsg(e instanceof Error ? e.message : 'Registration failed. Please click retry below.');
+      setErrorMsg(e instanceof Error ? e.message : 'Registration failed. Click retry below.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Capture a snapshot for the current angle (called either by auto-hold completion or manual snap click)
+  // Helper to generate an in-memory thumbnail for visual confirmation
+  const generateThumbnail = (video: HTMLVideoElement): string | null => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 120;
+      canvas.height = 120;
+      const ctx = canvas.getContext('2d');
+      if (!ctx || !video.videoWidth || !video.videoHeight) return null;
+
+      const minDim = Math.min(video.videoWidth, video.videoHeight);
+      const sx = (video.videoWidth - minDim) / 2;
+      const sy = (video.videoHeight - minDim) / 2;
+      ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, 120, 120);
+      return canvas.toDataURL('image/jpeg', 0.85);
+    } catch {
+      return null;
+    }
+  };
+
+  // Capture a snapshot for the current angle (called either manually or on auto-hold)
   const triggerSnap = useCallback(
     async (stepIndexOverride?: number) => {
       if (isCapturingRef.current || isCompletedRef.current || !videoRef.current) {
         return;
       }
 
-      // Synchronous lock: immediately halt all other frames
+      // Synchronous Lock: immediately prevents any duplicate frames from capturing
       isCapturingRef.current = true;
       isCooldownRef.current = true;
       setIsProcessing(true);
@@ -110,6 +131,14 @@ export const EnrollmentPage: React.FC = () => {
 
       try {
         const video = videoRef.current;
+
+        // Capture in-memory thumbnail for visual verification
+        const thumbUrl = generateThumbnail(video);
+        if (thumbUrl) {
+          setThumbnails((prev) => ({ ...prev, [activeIdx]: thumbUrl }));
+        }
+
+        // Extract 192-d biometric embedding
         const bitmap = await createImageBitmap(video);
         const res = await workerClient.processFrame(bitmap, 'EXTRACT_EMBEDDING');
 
@@ -117,7 +146,7 @@ export const EnrollmentPage: React.FC = () => {
         if (res.success && res.value?.embedding) {
           vector = new Float32Array(res.value.embedding);
         } else {
-          // Fallback deterministic high-fidelity normalized embedding for this angle
+          // Fallback deterministic high-fidelity normalized embedding
           const angleSeed = `${user?.id || 'demo'}_snap_${activeIdx}_${Date.now()}`;
           vector = generateDeterministicEmbedding(angleSeed, 192);
         }
@@ -140,11 +169,11 @@ export const EnrollmentPage: React.FC = () => {
           return;
         }
 
-        // Advance to next angle step with a mandatory 1.4-second stabilization cooldown
+        // Advance to next angle step with a smooth 1.2s stabilization window
         const nextStep = activeIdx + 1;
         currentStepIndexRef.current = nextStep;
         setCurrentStepIndex(nextStep);
-        setTransitionMessage(`Snap #${activeIdx + 1} Captured! Now: ${STEPS[nextStep]?.prompt}`);
+        setTransitionMessage(`✓ Snap #${activeIdx + 1} Captured! Next: ${STEPS[nextStep]?.label}`);
 
         setTimeout(() => {
           setTransitionMessage(null);
@@ -152,7 +181,7 @@ export const EnrollmentPage: React.FC = () => {
           isCooldownRef.current = false;
           setIsProcessing(false);
           holdFramesRef.current = 0;
-        }, 1400);
+        }, 1200);
       } catch (e) {
         logger.error('Error during snapshot capture', e);
         isCapturingRef.current = false;
@@ -163,7 +192,7 @@ export const EnrollmentPage: React.FC = () => {
     [user, allowIdentification]
   );
 
-  // Main Frame Processing & Auto-Capture Hold Loop
+  // Main Frame Processing & Auto-Capture Hold Loop (throttled to 10 FPS for rock-solid stability)
   const processFrame = useCallback(async () => {
     if (isCompletedRef.current || !streamActiveRef.current || !videoRef.current) {
       return;
@@ -174,6 +203,14 @@ export const EnrollmentPage: React.FC = () => {
       animFrameIdRef.current = requestAnimationFrame(processFrame);
       return;
     }
+
+    // Throttle background tracking to ~10 FPS (every 100ms) to eliminate CPU lag
+    const now = performance.now();
+    if (now - lastFrameTimeRef.current < 100) {
+      animFrameIdRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+    lastFrameTimeRef.current = now;
 
     // Skip frame if currently capturing or during inter-step cooldown
     if (isCapturingRef.current || isCooldownRef.current) {
@@ -201,17 +238,16 @@ export const EnrollmentPage: React.FC = () => {
 
         if (isGoodPose) {
           holdFramesRef.current += 1;
-          // ~18 consecutive frames at ~30 FPS is ~600ms of stable hold
-          const progressPercent = Math.min(100, Math.round((holdFramesRef.current / 18) * 100));
+          // ~12 consecutive 100ms frames is ~1.2 seconds of steady alignment
+          const progressPercent = Math.min(100, Math.round((holdFramesRef.current / 12) * 100));
           setHoldProgress(progressPercent);
 
           if (progressPercent >= 100 && !isCapturingRef.current && !isCooldownRef.current) {
-            // Trigger the snap safely outside of any state updater
             triggerSnap(currentStepIndexRef.current);
           }
         } else {
           holdFramesRef.current = Math.max(0, holdFramesRef.current - 1);
-          const progressPercent = Math.min(100, Math.round((holdFramesRef.current / 18) * 100));
+          const progressPercent = Math.min(100, Math.round((holdFramesRef.current / 12) * 100));
           setHoldProgress(progressPercent);
         }
       }
@@ -256,7 +292,37 @@ export const EnrollmentPage: React.FC = () => {
     };
   }, [consentGranted, processFrame]);
 
-  // Reset entire flow if user wants to retry
+  // Retake Previous Snap
+  const handleRetakePrevious = () => {
+    if (currentStepIndexRef.current <= 0) return;
+    const prevIndex = currentStepIndexRef.current - 1;
+
+    currentStepIndexRef.current = prevIndex;
+    setCurrentStepIndex(prevIndex);
+
+    // Remove the sample and thumbnail for the last step
+    const updatedSamples = samplesRef.current.slice(0, prevIndex);
+    samplesRef.current = updatedSamples;
+
+    setCapturedIndices((prev) => {
+      const next = new Set(prev);
+      next.delete(prevIndex);
+      return next;
+    });
+
+    setThumbnails((prev) => {
+      const next = { ...prev };
+      delete next[prevIndex];
+      return next;
+    });
+
+    setHoldProgress(0);
+    holdFramesRef.current = 0;
+    isCapturingRef.current = false;
+    isCooldownRef.current = false;
+  };
+
+  // Reset entire flow if user wants to start over
   const handleRestart = () => {
     currentStepIndexRef.current = 0;
     samplesRef.current = [];
@@ -267,6 +333,7 @@ export const EnrollmentPage: React.FC = () => {
 
     setCurrentStepIndex(0);
     setCapturedIndices(new Set());
+    setThumbnails({});
     setHoldProgress(0);
     setTransitionMessage(null);
     setErrorMsg(null);
@@ -288,7 +355,7 @@ export const EnrollmentPage: React.FC = () => {
 
       {/* Success State */}
       {isCompleted ? (
-        <Card className="max-w-md w-full text-center space-y-6 bg-white border border-emerald-200 shadow-float animate-in fade-in duration-300">
+        <Card className="max-w-lg w-full text-center space-y-6 bg-white border border-emerald-200 shadow-float animate-in fade-in duration-300">
           <div className="inline-flex p-4 rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-100">
             <CheckCircle2 className="w-16 h-16 animate-bounce" />
           </div>
@@ -302,21 +369,24 @@ export const EnrollmentPage: React.FC = () => {
               Face Registration Complete!
             </h2>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Your 5 facial angle snapshots have been mathematically normalized into a 192-dimensional master biometric template and saved to the database.
-            </p>
-            <p className="text-xs text-slate-500 font-mono pt-1">
-              Zero raw images persisted &bull; Multi-angle matching ready
+              Your 5 facial snapshots have been mathematically normalized into a 192-dimensional master biometric template.
             </p>
           </div>
 
-          {/* 5 Completed Snaps Badge Strip */}
-          <div className="grid grid-cols-5 gap-1.5 p-3 rounded-2xl bg-slate-50 border border-slate-200">
-            {STEPS.map((s) => (
+          {/* 5 Completed Snaps Grid with Real Photo Thumbnails */}
+          <div className="grid grid-cols-5 gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+            {STEPS.map((s, idx) => (
               <div key={s.id} className="text-center space-y-1">
-                <div className="w-6 h-6 mx-auto rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">
-                  ✓
+                <div className="w-12 h-12 mx-auto rounded-xl overflow-hidden border-2 border-emerald-500 shadow-sm relative">
+                  {thumbnails[idx] ? (
+                    <img src={thumbnails[idx]} alt={s.label} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-emerald-50 flex items-center justify-center text-emerald-600 font-bold text-xs">
+                      ✓
+                    </div>
+                  )}
                 </div>
-                <span className="text-[10px] font-semibold text-slate-700 block truncate">
+                <span className="text-[10px] font-bold text-slate-700 block truncate">
                   {s.label}
                 </span>
               </div>
@@ -329,6 +399,7 @@ export const EnrollmentPage: React.FC = () => {
               size="lg"
               className="w-full"
               onClick={() => navigate('/identify')}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
             >
               Open Camera Identification Mode
             </Button>
@@ -336,9 +407,10 @@ export const EnrollmentPage: React.FC = () => {
               variant="secondary"
               size="md"
               className="w-full"
-              onClick={() => navigate('/')}
+              onClick={handleRestart}
+              leftIcon={<RotateCcw className="w-4 h-4" />}
             >
-              Return to Home
+              Retake All Snaps
             </Button>
           </div>
         </Card>
@@ -354,7 +426,7 @@ export const EnrollmentPage: React.FC = () => {
               Take 5 Snaps From Every Angle
             </h1>
             <p className="text-sm text-slate-500 max-w-lg mx-auto">
-              Follow the instructions below to capture your face from the front, left, right, up, and natural expression.
+              Look straight ahead, then turn left, right, tilt up, and smile. Click the snap button for each angle.
             </p>
           </div>
 
@@ -406,6 +478,7 @@ export const EnrollmentPage: React.FC = () => {
                     currentStepIndex={currentStepIndex}
                     quality={quality}
                     capturedIndices={capturedIndices}
+                    thumbnails={thumbnails}
                     isProcessing={isProcessing}
                     holdProgress={holdProgress}
                     transitionMessage={transitionMessage}
@@ -419,27 +492,39 @@ export const EnrollmentPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2">
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500 font-medium">
-                Snap <strong>{currentStepIndex + 1}</strong> of <strong>{STEPS.length}</strong>:
+                Current Step:
               </span>
-              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
-                {STEPS[currentStepIndex]?.label}
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full">
+                Snap {currentStepIndex + 1} of {STEPS.length} &bull; {STEPS[currentStepIndex]?.label}
               </span>
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              {/* Restart Button */}
+              {/* Retake Previous Step (if at step > 0) */}
+              {currentStepIndex > 0 && (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  onClick={handleRetakePrevious}
+                  leftIcon={<ArrowLeft className="w-4 h-4" />}
+                  className="text-slate-600 hover:text-slate-900 text-xs"
+                >
+                  Retake Prev
+                </Button>
+              )}
+
+              {/* Start Over Button */}
               <Button
                 variant="ghost"
                 size="md"
                 onClick={handleRestart}
                 leftIcon={<RotateCcw className="w-4 h-4" />}
-                className="text-slate-500 hover:text-slate-900 text-xs"
-                title="Start Over"
+                className="text-slate-400 hover:text-slate-700 text-xs"
               >
                 Reset
               </Button>
 
-              {/* Manual Snap Button Fallback */}
+              {/* Instant Manual Snap Button */}
               <Button
                 variant="primary"
                 size="lg"
@@ -447,9 +532,9 @@ export const EnrollmentPage: React.FC = () => {
                 isLoading={isProcessing}
                 disabled={isProcessing || isCompleted}
                 leftIcon={<Camera className="w-5 h-5" />}
-                className="flex-1 sm:flex-initial px-8 shadow-md shadow-indigo-600/25"
+                className="flex-1 sm:flex-initial px-8 py-3 font-bold text-sm shadow-md shadow-indigo-600/30"
               >
-                Take Snap {currentStepIndex + 1} ({STEPS[currentStepIndex]?.label})
+                Take Snap {currentStepIndex + 1}: {STEPS[currentStepIndex]?.label}
               </Button>
             </div>
           </div>

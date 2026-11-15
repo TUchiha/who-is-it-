@@ -8,6 +8,7 @@ export interface LivenessOverlayProps {
   currentStepIndex: number;
   quality: QualityMetrics | null;
   capturedIndices: Set<number>;
+  thumbnails: Record<number, string>;
   isProcessing: boolean;
   holdProgress: number; // 0 to 100 for auto-capture hold progress
   transitionMessage?: string | null;
@@ -18,6 +19,7 @@ export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
   currentStepIndex,
   quality,
   capturedIndices,
+  thumbnails,
   isProcessing,
   holdProgress,
   transitionMessage,
@@ -45,33 +47,45 @@ export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
   const isAligned = quality?.passesQuality ?? false;
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 sm:p-6 select-none">
-      {/* Top 5 Angle Snap Indicator Cards */}
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 sm:p-5 select-none">
+      {/* Top 5 Angle Snap Indicator Cards with Live Photo Thumbnails */}
       <div className="w-full max-w-xl mx-auto space-y-2">
         <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
           {steps.map((s, idx) => {
             const isCaptured = capturedIndices.has(idx);
             const isCurrent = idx === currentStepIndex;
+            const thumb = thumbnails[idx];
 
             return (
               <div
                 key={s.id}
-                className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all duration-300 border backdrop-blur-md ${
+                className={`flex flex-col items-center justify-center p-1.5 rounded-xl transition-all duration-300 border backdrop-blur-md relative overflow-hidden ${
                   isCaptured
-                    ? 'bg-emerald-500/90 border-emerald-400 text-white shadow-md shadow-emerald-500/30'
+                    ? 'bg-emerald-950/80 border-emerald-400 text-white shadow-md shadow-emerald-500/20'
                     : isCurrent
-                    ? 'bg-indigo-600/90 border-indigo-400 text-white ring-2 ring-indigo-400/60 shadow-lg'
+                    ? 'bg-indigo-600/90 border-indigo-300 text-white ring-2 ring-indigo-400/70 shadow-lg'
                     : 'bg-slate-950/70 border-slate-800 text-slate-400'
                 }`}
               >
-                <div className="flex items-center gap-1">
-                  {isCaptured ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                  ) : (
-                    <span className="text-[10px] font-mono font-bold">#{idx + 1}</span>
-                  )}
-                </div>
-                <span className="text-[10px] font-semibold tracking-tight truncate max-w-full">
+                {/* Thumbnail Preview or Icon Badge */}
+                {thumb ? (
+                  <div className="relative">
+                    <img
+                      src={thumb}
+                      alt={s.label}
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-emerald-400 shadow-sm"
+                    />
+                    <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5">
+                      <CheckCircle2 className="w-2.5 h-2.5" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-900/80 border border-slate-700/80 flex items-center justify-center">
+                    <span className="text-[11px] font-mono font-bold">#{idx + 1}</span>
+                  </div>
+                )}
+
+                <span className="text-[10px] font-bold tracking-tight truncate max-w-full mt-1">
                   {s.label}
                 </span>
               </div>
@@ -79,9 +93,9 @@ export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
           })}
         </div>
 
-        {/* Transition / Cooldown Banner */}
+        {/* Transition / Cooldown Confirmation Banner */}
         {transitionMessage && (
-          <div className="p-2 px-3 rounded-xl bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold text-center border border-emerald-400 shadow-lg flex items-center justify-center gap-1.5 animate-in fade-in duration-200">
+          <div className="p-2 px-3 rounded-xl bg-emerald-500/95 backdrop-blur-md text-white text-xs font-bold text-center border border-emerald-400 shadow-xl flex items-center justify-center gap-1.5 animate-in fade-in duration-200">
             <Sparkles className="w-3.5 h-3.5" />
             <span>{transitionMessage}</span>
           </div>
@@ -131,11 +145,11 @@ export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
 
       {/* Bottom Instructions Card */}
       <div className="w-full max-w-lg mx-auto">
-        <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-slate-800 text-white shadow-2xl flex items-center gap-4">
-          <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 shrink-0">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-slate-800 text-white shadow-2xl flex items-center gap-3.5">
+          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 shrink-0">
             {getStepIcon(currentStep.icon)}
           </div>
-          <div className="flex-1 space-y-1">
+          <div className="flex-1 space-y-0.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 font-mono">
                 {currentStep.title}
@@ -144,7 +158,7 @@ export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
                 Snap {currentStepIndex + 1} of {steps.length}
               </span>
             </div>
-            <h3 className="font-extrabold text-base sm:text-lg text-white leading-tight">
+            <h3 className="font-extrabold text-sm sm:text-base text-white leading-tight">
               {currentStep.prompt}
             </h3>
             <p className="text-xs text-slate-400">
@@ -161,8 +175,8 @@ export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                 <span>
                   {holdProgress >= 100 || isProcessing
-                    ? 'Snap captured! Moving to next angle...'
-                    : 'Hold steady for snap capture...'}
+                    ? 'Capturing snapshot...'
+                    : 'Face aligned. Hold steady or click Take Snap below.'}
                 </span>
               </p>
             ) : null}

@@ -55,13 +55,21 @@ class WorkerClient {
     mode: 'FACE_DETECT' | 'LIVENESS' | 'EXTRACT_EMBEDDING',
     requiredAction?: LivenessAction
   ): Promise<Result<WorkerResponsePayload, BiometricFailure>> {
-    // Drop frame if previous is still processing (latest-frame-wins backpressure)
+    // If worker is busy: wait for critical embedding extractions; drop only background streaming frames
     if (this.isBusy) {
-      imageBitmap.close();
-      return err({
-        type: 'BIO_NO_FACE_DETECTED',
-        message: 'Worker is processing previous frame; dropping to maintain 15 FPS cadence',
-      });
+      if (mode === 'EXTRACT_EMBEDDING') {
+        let attempts = 0;
+        while (this.isBusy && attempts < 10) {
+          await new Promise((r) => setTimeout(r, 15));
+          attempts++;
+        }
+      } else {
+        imageBitmap.close();
+        return err({
+          type: 'BIO_NO_FACE_DETECTED',
+          message: 'Worker is processing previous frame; dropping to maintain smooth cadence',
+        });
+      }
     }
 
     this.isBusy = true;
