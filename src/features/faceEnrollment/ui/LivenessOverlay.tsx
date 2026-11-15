@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, ArrowLeft, ArrowRight, ArrowUp, Focus, Smile, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Eye, ArrowLeft, ArrowRight, ArrowUp, Focus, Smile, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import type { MultiAngleSnapStep } from '../../../core/ml/livenessService';
 import type { QualityMetrics } from '../../../core/ml/mlTypes';
 
@@ -10,6 +10,7 @@ export interface LivenessOverlayProps {
   capturedIndices: Set<number>;
   isProcessing: boolean;
   holdProgress: number; // 0 to 100 for auto-capture hold progress
+  transitionMessage?: string | null;
 }
 
 export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
@@ -19,6 +20,7 @@ export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
   capturedIndices,
   isProcessing,
   holdProgress,
+  transitionMessage,
 }) => {
   const currentStep = steps[currentStepIndex] || steps[0]!;
 
@@ -77,8 +79,16 @@ export const LivenessOverlay: React.FC<LivenessOverlayProps> = ({
           })}
         </div>
 
+        {/* Transition / Cooldown Banner */}
+        {transitionMessage && (
+          <div className="p-2 px-3 rounded-xl bg-emerald-500/90 backdrop-blur-md text-white text-xs font-bold text-center border border-emerald-400 shadow-lg flex items-center justify-center gap-1.5 animate-in fade-in duration-200">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{transitionMessage}</span>
+          </div>
+        )}
+
         {/* Hold Capture Circular/Linear Progress Bar */}
-        {holdProgress > 0 && holdProgress < 100 && (
+        {holdProgress > 0 && holdProgress < 100 && !transitionMessage && (
           <div className="w-full bg-slate-900/80 h-2 rounded-full overflow-hidden border border-slate-700/80">
             <div
               className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full transition-all duration-150"

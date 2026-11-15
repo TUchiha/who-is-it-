@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw, Camera, Sparkles } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw, Camera, Sparkles, RotateCcw } from 'lucide-react';
 import { useAuthStore } from '../../auth/ui/useAuthStore';
 import { cameraService } from '../../../core/camera/cameraService';
 import { usePermission } from '../../../core/camera/usePermission';
@@ -24,18 +24,27 @@ export const EnrollmentPage: React.FC = () => {
   const { status: permissionStatus, requestPermission, helpText } = usePermission();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamActiveRef = useRef(false);
 
-  // Enrollment states
+  // Mutable refs for rock-solid loop synchronization (prevents React state closure bugs)
+  const streamActiveRef = useRef(false);
+  const currentStepIndexRef = useRef(0);
+  const isCapturingRef = useRef(false);
+  const isCooldownRef = useRef(false);
+  const samplesRef = useRef<Float32Array[]>([]);
+  const holdFramesRef = useRef(0);
+  const isCompletedRef = useRef(false);
+  const animFrameIdRef = useRef<number | null>(null);
+
+  // React UI states
   const [showConsentModal, setShowConsentModal] = useState(true);
   const [consentGranted, setConsentGranted] = useState(false);
   const [allowIdentification, setAllowIdentification] = useState(true);
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [samples, setSamples] = useState<Float32Array[]>([]);
   const [capturedIndices, setCapturedIndices] = useState<Set<number>>(new Set());
   const [quality, setQuality] = useState<QualityMetrics | null>(null);
   const [holdProgress, setHoldProgress] = useState(0);
+  const [transitionMessage, setTransitionMessage] = useState<string | null>(null);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
@@ -49,131 +58,17 @@ export const EnrollmentPage: React.FC = () => {
     setShowConsentModal(false);
   };
 
-  // Start Camera Stream once consent is granted
-  useEffect(() => {
-    if (!consentGranted) return;
-
-    let mounted = true;
-    const startCamera = async () => {
-      const res = await cameraService.startStream({ facingMode: 'user' });
-      if (!mounted) return;
-
-      if (res.success && videoRef.current) {
-        videoRef.current.srcObject = res.value;
-        videoRef.current.play().catch((e) => logger.warn('Video play error', e));
-        streamActiveRef.current = true;
-      } else if (!res.success) {
-        setErrorMsg('Could not access camera. Please check browser permissions.');
-      }
-    };
-
-    startCamera();
-
-    return () => {
-      mounted = false;
-      streamActiveRef.current = false;
-      cameraService.stopStream();
-    };
-  }, [consentGranted]);
-
-  // Capture a snapshot for the current angle
-  const captureCurrentSnap = useCallback(async () => {
-    if (!videoRef.current || isProcessing || isCompleted) return;
-    setIsProcessing(true);
-
-    // Trigger visual shutter flash effect
-    setShutterFlash(true);
-    setTimeout(() => setShutterFlash(false), 200);
-
-    try {
-      const bitmap = await createImageBitmap(videoRef.current);
-      const res = await workerClient.processFrame(bitmap, 'EXTRACT_EMBEDDING');
-
-      let vector: Float32Array;
-      if (res.success && res.value?.embedding) {
-        vector = new Float32Array(res.value.embedding);
-      } else {
-        // Fallback: generate high-fidelity normalized vector for this angle
-        const angleSeed = `${user?.id || 'demo'}_snap_${currentStepIndex}_${Date.now()}`;
-        vector = generateDeterministicEmbedding(angleSeed, 192);
-      }
-
-      const newSamples = [...samples, vector];
-      setSamples(newSamples);
-
-      setCapturedIndices((prev) => new Set([...prev, currentStepIndex]));
-      setHoldProgress(0);
-
-      // Check if all 5 angle snaps are finished
-      if (currentStepIndex + 1 >= STEPS.length) {
-        finalizeRegistration(newSamples);
-      } else {
-        setCurrentStepIndex((prev) => prev + 1);
-        setIsProcessing(false);
-      }
-    } catch (e) {
-      logger.error('Error capturing snap', e);
-      setIsProcessing(false);
-    }
-  }, [currentStepIndex, isProcessing, isCompleted, samples, user]);
-
-  // Main Frame Processing & Auto-Capture Hold Loop
-  const processLoop = useCallback(async () => {
-    if (!videoRef.current || !streamActiveRef.current || isCompleted || isProcessing) {
-      return;
-    }
-
-    const video = videoRef.current;
-    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-      requestAnimationFrame(processLoop);
-      return;
-    }
-
-    const currentStep = STEPS[currentStepIndex];
-    if (!currentStep) return;
-
-    try {
-      const bitmap = await createImageBitmap(video);
-      const result = await workerClient.processFrame(bitmap, 'LIVENESS', currentStep.action);
-
-      if (result.success && result.value) {
-        const payload = result.value;
-        if (payload.detection) {
-          setQuality(payload.detection.quality);
-        }
-
-        // When face is aligned and passes quality, increment auto-capture hold progress
-        if (payload.detection?.quality.passesQuality && payload.livenessPassed) {
-          setHoldProgress((prev) => {
-            const next = prev + 15;
-            if (next >= 100) {
-              captureCurrentSnap();
-              return 100;
-            }
-            return next;
-          });
-        } else {
-          setHoldProgress((prev) => Math.max(0, prev - 10));
-        }
-      }
-    } catch (e) {
-      logger.debug('Frame loop skipped', e);
-    }
-
-    if (!isCompleted) {
-      requestAnimationFrame(processLoop);
-    }
-  }, [currentStepIndex, isCompleted, isProcessing, captureCurrentSnap]);
-
-  // Trigger loop on video play
-  const handleVideoCanPlay = () => {
-    requestAnimationFrame(processLoop);
-  };
-
   // Finalize Registration with all 5 Multi-Angle Snapshots
   const finalizeRegistration = async (finalSamples: Float32Array[]) => {
     if (!user) return;
     setIsProcessing(true);
+    isCompletedRef.current = true;
+
+    if (animFrameIdRef.current) {
+      cancelAnimationFrame(animFrameIdRef.current);
+      animFrameIdRef.current = null;
+    }
+
     try {
       await enrollFaceUseCase.execute({
         userId: user.id,
@@ -187,8 +82,198 @@ export const EnrollmentPage: React.FC = () => {
       streamActiveRef.current = false;
       logger.info('5-Angle biometric face registration completed successfully');
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : 'Registration failed');
+      logger.error('Registration failed', e);
+      setErrorMsg(e instanceof Error ? e.message : 'Registration failed. Please click retry below.');
+    } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Capture a snapshot for the current angle (called either by auto-hold completion or manual snap click)
+  const triggerSnap = useCallback(
+    async (stepIndexOverride?: number) => {
+      if (isCapturingRef.current || isCompletedRef.current || !videoRef.current) {
+        return;
+      }
+
+      // Synchronous lock: immediately halt all other frames
+      isCapturingRef.current = true;
+      isCooldownRef.current = true;
+      setIsProcessing(true);
+
+      const activeIdx = stepIndexOverride ?? currentStepIndexRef.current;
+      logger.info(`Capturing snap #${activeIdx + 1} (${STEPS[activeIdx]?.label})`);
+
+      // Trigger visual camera shutter flash
+      setShutterFlash(true);
+      setTimeout(() => setShutterFlash(false), 220);
+
+      try {
+        const video = videoRef.current;
+        const bitmap = await createImageBitmap(video);
+        const res = await workerClient.processFrame(bitmap, 'EXTRACT_EMBEDDING');
+
+        let vector: Float32Array;
+        if (res.success && res.value?.embedding) {
+          vector = new Float32Array(res.value.embedding);
+        } else {
+          // Fallback deterministic high-fidelity normalized embedding for this angle
+          const angleSeed = `${user?.id || 'demo'}_snap_${activeIdx}_${Date.now()}`;
+          vector = generateDeterministicEmbedding(angleSeed, 192);
+        }
+
+        const newSamples = [...samplesRef.current, vector];
+        samplesRef.current = newSamples;
+
+        setCapturedIndices((prev) => {
+          const next = new Set(prev);
+          next.add(activeIdx);
+          return next;
+        });
+
+        setHoldProgress(0);
+        holdFramesRef.current = 0;
+
+        // Check if all 5 angles have been captured
+        if (newSamples.length >= STEPS.length || activeIdx + 1 >= STEPS.length) {
+          await finalizeRegistration(newSamples);
+          return;
+        }
+
+        // Advance to next angle step with a mandatory 1.4-second stabilization cooldown
+        const nextStep = activeIdx + 1;
+        currentStepIndexRef.current = nextStep;
+        setCurrentStepIndex(nextStep);
+        setTransitionMessage(`Snap #${activeIdx + 1} Captured! Now: ${STEPS[nextStep]?.prompt}`);
+
+        setTimeout(() => {
+          setTransitionMessage(null);
+          isCapturingRef.current = false;
+          isCooldownRef.current = false;
+          setIsProcessing(false);
+          holdFramesRef.current = 0;
+        }, 1400);
+      } catch (e) {
+        logger.error('Error during snapshot capture', e);
+        isCapturingRef.current = false;
+        isCooldownRef.current = false;
+        setIsProcessing(false);
+      }
+    },
+    [user, allowIdentification]
+  );
+
+  // Main Frame Processing & Auto-Capture Hold Loop
+  const processFrame = useCallback(async () => {
+    if (isCompletedRef.current || !streamActiveRef.current || !videoRef.current) {
+      return;
+    }
+
+    const video = videoRef.current;
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      animFrameIdRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+
+    // Skip frame if currently capturing or during inter-step cooldown
+    if (isCapturingRef.current || isCooldownRef.current) {
+      animFrameIdRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+
+    const activeStep = STEPS[currentStepIndexRef.current];
+    if (!activeStep) {
+      animFrameIdRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+
+    try {
+      const bitmap = await createImageBitmap(video);
+      const result = await workerClient.processFrame(bitmap, 'LIVENESS', activeStep.action);
+
+      if (result.success && result.value) {
+        const payload = result.value;
+        if (payload.detection) {
+          setQuality(payload.detection.quality);
+        }
+
+        const isGoodPose = Boolean(payload.detection?.quality.passesQuality && payload.livenessPassed);
+
+        if (isGoodPose) {
+          holdFramesRef.current += 1;
+          // ~18 consecutive frames at ~30 FPS is ~600ms of stable hold
+          const progressPercent = Math.min(100, Math.round((holdFramesRef.current / 18) * 100));
+          setHoldProgress(progressPercent);
+
+          if (progressPercent >= 100 && !isCapturingRef.current && !isCooldownRef.current) {
+            // Trigger the snap safely outside of any state updater
+            triggerSnap(currentStepIndexRef.current);
+          }
+        } else {
+          holdFramesRef.current = Math.max(0, holdFramesRef.current - 1);
+          const progressPercent = Math.min(100, Math.round((holdFramesRef.current / 18) * 100));
+          setHoldProgress(progressPercent);
+        }
+      }
+    } catch (e) {
+      logger.debug('Frame loop skipped', e);
+    }
+
+    if (!isCompletedRef.current) {
+      animFrameIdRef.current = requestAnimationFrame(processFrame);
+    }
+  }, [triggerSnap]);
+
+  // Start Camera Stream once consent is granted
+  useEffect(() => {
+    if (!consentGranted) return;
+
+    let mounted = true;
+    const startCamera = async () => {
+      const res = await cameraService.startStream({ facingMode: 'user' });
+      if (!mounted) return;
+
+      if (res.success && videoRef.current) {
+        videoRef.current.srcObject = res.value;
+        await videoRef.current.play().catch((e) => logger.warn('Video play error', e));
+        streamActiveRef.current = true;
+        animFrameIdRef.current = requestAnimationFrame(processFrame);
+      } else if (!res.success) {
+        setErrorMsg('Could not access camera. Please check browser permissions.');
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      mounted = false;
+      streamActiveRef.current = false;
+      if (animFrameIdRef.current) {
+        cancelAnimationFrame(animFrameIdRef.current);
+        animFrameIdRef.current = null;
+      }
+      cameraService.stopStream();
+    };
+  }, [consentGranted, processFrame]);
+
+  // Reset entire flow if user wants to retry
+  const handleRestart = () => {
+    currentStepIndexRef.current = 0;
+    samplesRef.current = [];
+    holdFramesRef.current = 0;
+    isCapturingRef.current = false;
+    isCooldownRef.current = false;
+    isCompletedRef.current = false;
+
+    setCurrentStepIndex(0);
+    setCapturedIndices(new Set());
+    setHoldProgress(0);
+    setTransitionMessage(null);
+    setErrorMsg(null);
+    setIsCompleted(false);
+
+    if (videoRef.current && streamActiveRef.current) {
+      animFrameIdRef.current = requestAnimationFrame(processFrame);
     }
   };
 
@@ -269,11 +354,24 @@ export const EnrollmentPage: React.FC = () => {
               Take 5 Snaps From Every Angle
             </h1>
             <p className="text-sm text-slate-500 max-w-lg mx-auto">
-              Follow the instructions below to capture your face from the front, left, right, and upward angles.
+              Follow the instructions below to capture your face from the front, left, right, up, and natural expression.
             </p>
           </div>
 
-          {errorMsg && <Alert type="error" message={errorMsg} />}
+          {errorMsg && (
+            <div className="space-y-2">
+              <Alert type="error" message={errorMsg} />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleRestart}
+                leftIcon={<RotateCcw className="w-4 h-4" />}
+                className="w-full"
+              >
+                Restart 5-Snap Registration
+              </Button>
+            </div>
+          )}
 
           {/* Camera Viewfinder View with Shutter Flash */}
           <div className="relative aspect-[3/4] sm:aspect-video rounded-3xl overflow-hidden bg-slate-950 border-4 border-white shadow-2xl ring-1 ring-slate-200">
@@ -298,7 +396,6 @@ export const EnrollmentPage: React.FC = () => {
                   playsInline
                   muted
                   autoPlay
-                  onCanPlay={handleVideoCanPlay}
                   className="w-full h-full object-cover transform -scale-x-100"
                 />
 
@@ -311,6 +408,7 @@ export const EnrollmentPage: React.FC = () => {
                     capturedIndices={capturedIndices}
                     isProcessing={isProcessing}
                     holdProgress={holdProgress}
+                    transitionMessage={transitionMessage}
                   />
                 )}
               </>
@@ -318,23 +416,42 @@ export const EnrollmentPage: React.FC = () => {
           </div>
 
           {/* Action Toolbar */}
-          <div className="flex items-center justify-between gap-3 px-2">
-            <span className="text-xs text-slate-500 font-medium">
-              Snap <strong>{currentStepIndex + 1}</strong> of <strong>{STEPS.length}</strong>
-            </span>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium">
+                Snap <strong>{currentStepIndex + 1}</strong> of <strong>{STEPS.length}</strong>:
+              </span>
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
+                {STEPS[currentStepIndex]?.label}
+              </span>
+            </div>
 
-            {/* Manual Snap Button Fallback */}
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={captureCurrentSnap}
-              isLoading={isProcessing}
-              disabled={isProcessing}
-              leftIcon={<Camera className="w-5 h-5" />}
-              className="px-8 shadow-md shadow-indigo-600/25"
-            >
-              Take Snap {currentStepIndex + 1} ({STEPS[currentStepIndex]?.label})
-            </Button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {/* Restart Button */}
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={handleRestart}
+                leftIcon={<RotateCcw className="w-4 h-4" />}
+                className="text-slate-500 hover:text-slate-900 text-xs"
+                title="Start Over"
+              >
+                Reset
+              </Button>
+
+              {/* Manual Snap Button Fallback */}
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => triggerSnap(currentStepIndex)}
+                isLoading={isProcessing}
+                disabled={isProcessing || isCompleted}
+                leftIcon={<Camera className="w-5 h-5" />}
+                className="flex-1 sm:flex-initial px-8 shadow-md shadow-indigo-600/25"
+              >
+                Take Snap {currentStepIndex + 1} ({STEPS[currentStepIndex]?.label})
+              </Button>
+            </div>
           </div>
         </div>
       )}
