@@ -4,11 +4,12 @@ import {
   Scan,
   UserCheck,
   Lock,
-  ShieldAlert,
+  ShieldCheck,
   ArrowRight,
   Cpu,
   EyeOff,
   Scale,
+  Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '../auth/ui/useAuthStore';
 import { Button } from '../../shared/components/Button';
@@ -19,82 +20,91 @@ export const HomePage: React.FC = () => {
 
   const coreFeatures = [
     {
-      title: 'Real-Time Object Detection',
-      description:
-        'Zero-latency, on-device object detection powered by EfficientDet-Lite0 running inside a high-performance Web Worker.',
-      icon: Scan,
-      color: 'from-cyan-500 to-blue-500',
-      path: '/objects',
-      badge: 'On-Device',
-    },
-    {
-      title: 'Local Face Unlock',
-      description:
-        'Unlock your local session using MobileFaceNet embeddings and mandatory random liveness challenges. Your face unlocks credentials stored in IndexedDB.',
-      icon: Lock,
-      color: 'from-emerald-500 to-teal-500',
-      path: '/unlock',
-      badge: 'Convenience Factor',
-    },
-    {
       title: 'Consent-Based Identification',
       description:
-        'Server-side vector search matching opted-in users only. Other people’s embedding vectors never touch client devices.',
+        'Point your camera at any enrolled subject to verify their identity through database vector cosine matching (threshold >= 0.75).',
       icon: UserCheck,
-      color: 'from-purple-500 to-indigo-500',
+      gradient: 'from-indigo-600 to-violet-600',
+      badge: 'Database Vector Match',
       path: '/identify',
-      badge: 'Server-Side Only',
+      actionText: 'Open Identification Mode',
+      primary: true,
+    },
+    {
+      title: '1st-Login Face Registration',
+      description:
+        'Every user registers their facial embedding vector on first login with randomized liveness challenges (blink / turn head) to prevent spoofs.',
+      icon: Lock,
+      gradient: 'from-emerald-600 to-teal-500',
+      badge: 'Mandatory Setup',
+      path: '/enroll',
+      actionText: 'Register Face Template',
+      primary: false,
+    },
+    {
+      title: 'Real-Time Object Detection',
+      description:
+        'Zero-latency, on-device object detection powered by EfficientDet-Lite0 running completely isolated in a high-performance Web Worker.',
+      icon: Scan,
+      gradient: 'from-blue-600 to-cyan-500',
+      badge: 'On-Device Vision',
+      path: '/objects',
+      actionText: 'Open Object Vision',
+      primary: false,
     },
   ];
 
   const privacyPillars = [
     {
       title: 'No Raw Images Stored',
-      description: 'Camera frames are processed in-memory and immediately discarded. Never persisted or uploaded.',
+      description: 'Camera video frames are processed in-memory and immediately wiped. No photos are ever saved or uploaded.',
       icon: EyeOff,
     },
     {
-      title: 'Web Worker Isolated',
-      description: 'Heavy ML executes in dedicated background threads via OffscreenCanvas, keeping UI smooth.',
+      title: 'Web Worker Isolation',
+      description: 'Heavy ML executes in dedicated background threads via OffscreenCanvas, ensuring lightning-fast UI responsiveness.',
       icon: Cpu,
     },
     {
       title: 'BIPA & GDPR Compliant',
-      description: 'Explicit versioned consent, 3-year statutory deletion cap, and single-click biometric purge.',
+      description: 'Explicit informed consent, 3-year statutory deletion cap, and 1-click permanent data deletion.',
       icon: Scale,
     },
   ];
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12 space-y-12">
-      {/* Hero Header */}
-      <div className="text-center space-y-4 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-800 text-cyan-300 text-xs font-semibold">
-          <ShieldAlert className="w-3.5 h-3.5" />
-          <span>Biometric Privacy by Design</span>
+    <div className="max-w-6xl mx-auto px-4 py-10 sm:py-16 space-y-16">
+      {/* Hero Section */}
+      <div className="text-center space-y-5 max-w-3xl mx-auto">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 text-xs font-bold tracking-wide shadow-subtle">
+          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+          <span>Next-Generation Vision &amp; Identity</span>
         </div>
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-          Intelligent Vision &amp; Identity with{' '}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+
+        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
+          Intelligent Camera Vision with{' '}
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500">
             Guaranteed Privacy
           </span>
         </h1>
-        <p className="text-base sm:text-lg text-slate-400">
-          A high-performance web platform combining on-device object detection,
-          local face unlock convenience, and privacy-first consent-driven person identification.
+
+        <p className="text-base sm:text-lg text-slate-600 leading-relaxed font-normal">
+          A high-performance biometric platform combining real-time camera face identification,
+          anti-spoof liveness verification, and private on-device vision.
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
           {user ? (
-            <Link to="/objects">
+            <Link to="/identify">
               <Button variant="primary" size="lg" rightIcon={<ArrowRight className="w-4 h-4" />}>
-                Launch Camera Vision
+                Launch Camera Identification
               </Button>
             </Link>
           ) : (
             <>
               <Link to="/signup">
                 <Button variant="primary" size="lg" rightIcon={<ArrowRight className="w-4 h-4" />}>
-                  Get Started
+                  Create Free Account
                 </Button>
               </Link>
               <Link to="/signin">
@@ -112,28 +122,41 @@ export const HomePage: React.FC = () => {
         {coreFeatures.map((feat) => {
           const Icon = feat.icon;
           return (
-            <Card key={feat.title} variant="glass" className="flex flex-col justify-between group hover:border-slate-700 transition-colors">
+            <Card
+              key={feat.title}
+              className={`flex flex-col justify-between group hover:-translate-y-1 transition-all duration-200 ${
+                feat.primary
+                  ? 'border-indigo-300 ring-2 ring-indigo-500/10 shadow-float'
+                  : 'border-slate-200/90 hover:border-slate-300'
+              }`}
+            >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className={`p-3 rounded-xl bg-gradient-to-tr ${feat.color} text-slate-950 font-bold shadow-lg`}>
+                  <div className={`p-3.5 rounded-2xl bg-gradient-to-tr ${feat.gradient} text-white shadow-md shadow-indigo-600/20`}>
                     <Icon className="w-6 h-6" />
                   </div>
-                  <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                     {feat.badge}
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-slate-100 group-hover:text-cyan-300 transition-colors">
+
+                <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
                   {feat.title}
                 </h3>
-                <p className="text-sm text-slate-400 leading-relaxed">
+
+                <p className="text-sm text-slate-600 leading-relaxed">
                   {feat.description}
                 </p>
               </div>
 
               <div className="pt-6">
                 <Link to={feat.path} className="block">
-                  <Button variant="outline" size="sm" className="w-full justify-between">
-                    <span>Open Mode</span>
+                  <Button
+                    variant={feat.primary ? 'primary' : 'outline'}
+                    size="md"
+                    className="w-full justify-between"
+                  >
+                    <span>{feat.actionText}</span>
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
@@ -144,21 +167,28 @@ export const HomePage: React.FC = () => {
       </div>
 
       {/* Privacy Architecture Pillars */}
-      <div className="border border-slate-800/80 rounded-3xl bg-slate-900/30 p-8 space-y-6">
-        <h2 className="text-xl font-bold text-center text-slate-200">
-          Non-Negotiable Privacy Commitments
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="border border-slate-200/90 rounded-3xl bg-white p-8 sm:p-10 shadow-card space-y-8">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <span>Non-Negotiable Privacy Commitments</span>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900">
+            How We Protect Your Biometric Rights
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {privacyPillars.map((p) => {
             const Icon = p.icon;
             return (
               <div key={p.title} className="flex gap-4 items-start">
-                <div className="p-2.5 rounded-xl bg-slate-800 text-cyan-400 shrink-0">
+                <div className="p-3 rounded-2xl bg-indigo-50 text-indigo-600 shrink-0 border border-indigo-100 shadow-subtle">
                   <Icon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-200">{p.title}</h4>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">{p.description}</p>
+                  <h4 className="text-base font-bold text-slate-900">{p.title}</h4>
+                  <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">{p.description}</p>
                 </div>
               </div>
             );

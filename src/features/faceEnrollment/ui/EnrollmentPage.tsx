@@ -163,7 +163,7 @@ export const EnrollmentPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] p-4 max-w-4xl mx-auto flex flex-col justify-center items-center">
+    <div className="min-h-[calc(100vh-4rem)] p-4 max-w-4xl mx-auto flex flex-col justify-center items-center bg-slate-50">
       {/* Biometric Informed Consent Modal */}
       <ConsentModal
         isOpen={showConsentModal}
@@ -173,24 +173,24 @@ export const EnrollmentPage: React.FC = () => {
 
       {/* Success State */}
       {isCompleted ? (
-        <Card className="max-w-md w-full text-center space-y-6 border-emerald-500/40 shadow-2xl shadow-emerald-950/40">
-          <div className="inline-flex p-4 rounded-3xl bg-emerald-500/10 text-emerald-400">
+        <Card className="max-w-md w-full text-center space-y-6 bg-white border border-emerald-200 shadow-float">
+          <div className="inline-flex p-4 rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-100">
             <CheckCircle2 className="w-16 h-16 animate-bounce" />
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-2xl font-extrabold text-white">
+            <h2 className="text-2xl font-extrabold text-slate-900">
               Biometric Enrollment Complete!
             </h2>
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-slate-600 leading-relaxed">
               Your 192-dimensional facial embedding vector has been generated and stored in the database as your primary identification key.
             </p>
-            <p className="text-xs text-slate-500 font-mono">
+            <p className="text-xs text-slate-500 font-mono pt-1">
               Zero raw images persisted &bull; BIPA/GDPR 3-year statutory cap active
             </p>
           </div>
 
-          <div className="space-y-2 pt-2">
+          <div className="space-y-2.5 pt-2">
             <Button
               variant="primary"
               size="lg"
@@ -213,14 +213,14 @@ export const EnrollmentPage: React.FC = () => {
         /* Active Enrollment Screen */
         <div className="w-full space-y-6">
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800 text-cyan-300 text-xs font-semibold">
-              <ShieldCheck className="w-4 h-4" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-50 border border-indigo-200/90 text-indigo-700 text-xs font-bold shadow-subtle">
+              <ShieldCheck className="w-4 h-4 text-indigo-600" />
               <span>Mandatory First-Time Setup</span>
             </div>
-            <h1 className="text-3xl font-extrabold text-white">
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
               Face Registration &amp; Liveness
             </h1>
-            <p className="text-sm text-slate-400 max-w-xl mx-auto">
+            <p className="text-sm text-slate-500 max-w-xl mx-auto">
               Follow the on-screen gestures to verify you are a live person and generate your unique mathematical vector key.
             </p>
           </div>
@@ -228,11 +228,11 @@ export const EnrollmentPage: React.FC = () => {
           {errorMsg && <Alert type="error" message={errorMsg} />}
 
           {/* Camera Viewfinder View */}
-          <div className="relative w-full max-w-2xl mx-auto aspect-[3/4] sm:aspect-video rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 shadow-2xl">
+          <div className="relative w-full max-w-2xl mx-auto aspect-[3/4] sm:aspect-video rounded-3xl overflow-hidden bg-slate-950 border-4 border-white shadow-2xl ring-1 ring-slate-200">
             {permissionStatus === 'denied' ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-4">
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-4 bg-slate-900 text-white">
                 <AlertTriangle className="w-12 h-12 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">Camera Access Blocked</h3>
+                <h3 className="text-lg font-bold">Camera Access Blocked</h3>
                 <p className="text-xs text-slate-400 max-w-md">{helpText}</p>
                 <Button variant="primary" size="md" onClick={requestPermission} leftIcon={<RefreshCw className="w-4 h-4" />}>
                   Retry Permission

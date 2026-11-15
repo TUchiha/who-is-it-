@@ -17,32 +17,32 @@ export const Alert: React.FC<AlertProps> = ({
 }) => {
   const configs = {
     info: {
-      bg: 'bg-cyan-950/40 border-cyan-800/60 text-cyan-200',
-      icon: <Info className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />,
+      bg: 'bg-indigo-50/80 border-indigo-200/80 text-indigo-950',
+      icon: <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />,
     },
     warning: {
-      bg: 'bg-amber-950/40 border-amber-800/60 text-amber-200',
-      icon: <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />,
+      bg: 'bg-amber-50/80 border-amber-200/80 text-amber-950',
+      icon: <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />,
     },
     error: {
-      bg: 'bg-rose-950/40 border-rose-800/60 text-rose-200',
-      icon: <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />,
+      bg: 'bg-rose-50/80 border-rose-200/80 text-rose-950',
+      icon: <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />,
     },
     success: {
-      bg: 'bg-emerald-950/40 border-emerald-800/60 text-emerald-200',
-      icon: <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />,
+      bg: 'bg-emerald-50/80 border-emerald-200/80 text-emerald-950',
+      icon: <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />,
     },
   }[type];
 
   return (
     <div
       role="alert"
-      className={`flex items-start gap-3 p-4 rounded-xl border text-sm ${configs.bg} ${className}`}
+      className={`flex items-start gap-3 p-4 rounded-xl border text-sm shadow-subtle ${configs.bg} ${className}`}
     >
       {configs.icon}
       <div className="flex-1 space-y-0.5">
-        {title && <h4 className="font-semibold text-slate-100">{title}</h4>}
-        <p className="leading-relaxed opacity-90">{message}</p>
+        {title && <h4 className="font-semibold text-slate-900">{title}</h4>}
+        <p className="leading-relaxed opacity-95 text-slate-700">{message}</p>
       </div>
     </div>
   );

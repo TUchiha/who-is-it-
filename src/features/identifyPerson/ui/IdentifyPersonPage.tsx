@@ -127,17 +127,17 @@ export const IdentifyPersonPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] p-4 max-w-4xl mx-auto flex flex-col justify-center items-center space-y-6">
+    <div className="min-h-[calc(100vh-4rem)] p-4 max-w-4xl mx-auto flex flex-col justify-center items-center space-y-6 bg-slate-50">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/60 border border-cyan-800 text-cyan-300 text-xs font-semibold">
-          <UserCheck className="w-4 h-4" />
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-indigo-50 border border-indigo-200/90 text-indigo-700 text-xs font-bold shadow-subtle">
+          <UserCheck className="w-4 h-4 text-indigo-600" />
           <span>Real-Time Biometric Identification</span>
         </div>
-        <h1 className="text-3xl font-extrabold text-white">
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
           Identify Person via Camera
         </h1>
-        <p className="text-sm text-slate-400 max-w-lg mx-auto">
+        <p className="text-sm text-slate-500 max-w-lg mx-auto">
           Point your device camera at an enrolled subject to verify their identity through database vector matching.
         </p>
       </div>
@@ -149,11 +149,11 @@ export const IdentifyPersonPage: React.FC = () => {
         <IdentityResultCard outcome={outcome} onReset={handleResetScan} />
       ) : (
         <div className="w-full max-w-2xl space-y-4">
-          <div className="relative aspect-[3/4] sm:aspect-video rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 shadow-2xl">
+          <div className="relative aspect-[3/4] sm:aspect-video rounded-3xl overflow-hidden bg-slate-950 border-4 border-white shadow-2xl ring-1 ring-slate-200">
             {permissionStatus === 'denied' ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-4">
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-4 bg-slate-900 text-white">
                 <AlertTriangle className="w-12 h-12 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">Camera Access Blocked</h3>
+                <h3 className="text-lg font-bold">Camera Access Blocked</h3>
                 <p className="text-xs text-slate-400 max-w-md">{helpText}</p>
                 <Button variant="primary" size="md" onClick={requestPermission} leftIcon={<RefreshCw className="w-4 h-4" />}>
                   Grant Camera Permission
@@ -184,7 +184,7 @@ export const IdentifyPersonPage: React.FC = () => {
               variant="secondary"
               size="md"
               onClick={toggleFacingMode}
-              leftIcon={<SwitchCamera className="w-4 h-4" />}
+              leftIcon={<SwitchCamera className="w-4 h-4 text-slate-600" />}
             >
               {facingMode === 'user' ? 'Switch to Rear Camera' : 'Switch to Front Camera'}
             </Button>
@@ -196,7 +196,7 @@ export const IdentifyPersonPage: React.FC = () => {
               isLoading={isScanning}
               disabled={isScanning}
               leftIcon={<Camera className="w-5 h-5" />}
-              className="px-8 shadow-cyan-500/25"
+              className="px-8 shadow-md shadow-indigo-600/25"
             >
               {isScanning ? 'Matching Vector...' : 'Scan & Identify Subject'}
             </Button>

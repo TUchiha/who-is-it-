@@ -11,9 +11,9 @@ export const Card: React.FC<CardProps> = ({
   ...props
 }) => {
   const variantStyles = {
-    default: 'bg-slate-900 border border-slate-800 shadow-xl',
-    glass: 'bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 shadow-2xl',
-    bordered: 'bg-transparent border border-slate-800 hover:border-slate-700',
+    default: 'bg-white border border-slate-200/90 shadow-card',
+    glass: 'bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-card',
+    bordered: 'bg-white border border-slate-200 hover:border-slate-300 shadow-subtle',
   }[variant];
 
   return (

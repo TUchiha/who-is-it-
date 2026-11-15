@@ -80,17 +80,17 @@ export const SignUpPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
-      <Card className="w-full max-w-md space-y-6">
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-slate-50">
+      <Card className="w-full max-w-md space-y-6 bg-white border border-slate-200/90 shadow-card">
         <div className="text-center space-y-2">
-          <div className="inline-flex p-3 rounded-2xl bg-cyan-500/10 text-cyan-400 mb-1">
-            <ShieldCheck className="w-8 h-8" />
+          <div className="inline-flex p-3.5 rounded-2xl bg-indigo-50 text-indigo-600 mb-1 border border-indigo-100 shadow-subtle">
+            <ShieldCheck className="w-7 h-7" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
             Create Your Account
           </h1>
-          <p className="text-sm text-slate-400">
-            Set up credentials for secure on-device & server biometric matching
+          <p className="text-sm text-slate-500">
+            Set up credentials for secure on-device &amp; server biometric matching
           </p>
         </div>
 
@@ -105,7 +105,7 @@ export const SignUpPage: React.FC = () => {
             value={formData.displayName}
             onChange={handleChange}
             error={fieldErrors['displayName']}
-            leftIcon={<User className="w-4 h-4" />}
+            leftIcon={<User className="w-4 h-4 text-slate-400" />}
             autoComplete="name"
             required
           />
@@ -118,7 +118,7 @@ export const SignUpPage: React.FC = () => {
             value={formData.email}
             onChange={handleChange}
             error={fieldErrors['email']}
-            leftIcon={<Mail className="w-4 h-4" />}
+            leftIcon={<Mail className="w-4 h-4 text-slate-400" />}
             autoComplete="email"
             required
           />
@@ -132,7 +132,7 @@ export const SignUpPage: React.FC = () => {
             onChange={handleChange}
             error={fieldErrors['password']}
             helperText="At least 8 characters with upper, lower, & number"
-            leftIcon={<Lock className="w-4 h-4" />}
+            leftIcon={<Lock className="w-4 h-4 text-slate-400" />}
             autoComplete="new-password"
             required
           />
@@ -145,7 +145,7 @@ export const SignUpPage: React.FC = () => {
             value={formData.confirmPassword}
             onChange={handleChange}
             error={fieldErrors['confirmPassword']}
-            leftIcon={<Lock className="w-4 h-4" />}
+            leftIcon={<Lock className="w-4 h-4 text-slate-400" />}
             autoComplete="new-password"
             required
           />
@@ -161,9 +161,9 @@ export const SignUpPage: React.FC = () => {
           </Button>
         </form>
 
-        <p className="text-center text-xs text-slate-400">
+        <p className="text-center text-xs text-slate-500">
           Already have an account?{' '}
-          <Link to="/signin" className="text-cyan-400 hover:underline font-semibold">
+          <Link to="/signin" className="text-indigo-600 hover:text-indigo-700 hover:underline font-bold">
             Sign In
           </Link>
         </p>
